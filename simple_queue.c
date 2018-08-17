@@ -10,7 +10,7 @@
 
 
 #define	SIMPLE_QUEUE_MAJOR	200 //major number of device
-#define MAX_DATA	0x10  //max length of queue is 16
+#define MAX_DATA	1000  //max length of queue is 1000
  
 static	int simple_queue_major = SIMPLE_QUEUE_MAJOR; 
 
@@ -18,8 +18,8 @@ struct simple_queue_dev {
 	struct cdev cdev;
 	unsigned char data[MAX_DATA]; //队列存储数组
 	struct semaphore sem; //避免竞争状态
-	unsigned int current_head;    //队列当前头部
-	unsigned int current_tail;    //队列当前尾部
+	//unsigned int current_head;    //队列当前头部
+	//unsigned int current_tail;    //队列当前尾部
 	unsigned int current_len;     //队列当前长度
 	wait_queue_head_t r_wait;
 	wait_queue_head_t w_wait;
@@ -65,9 +65,12 @@ ssize_t	simple_queue_read(struct file *filp, char __user *buf, size_t count, lof
 		goto out;
 	} else 
 	{
-		printk(KERN_ALERT "cat current data is: %c\n",dev->data[dev->current_tail]);//cat一次输出一个int
+		printk(KERN_ALERT "cat current data is: %c\n",dev->data[0]);//cat一次输出一个int	
+		memcpy(dev->data, dev->data + 2, dev->current_len - 2);	
 		dev->current_len -= 2;
-		dev->current_tail += 2;
+		
+
+		//dev->current_tail += 2;
 		printk(KERN_ALERT "current len is: %d\n",dev->current_len);
 		wake_up_interruptible(&dev->w_wait);
 		*f_ops +=2;
@@ -103,15 +106,14 @@ ssize_t simple_queue_write(struct file *filp, const char __user *buf, size_t cou
 		}
 		down(&dev->sem);
 	}
-	if(copy_from_user(dev->data + dev->current_head, buf, count)){
+	if(copy_from_user(dev->data + dev->current_len, buf, count)){
 		//copy失败
 		ret = -EFAULT;
 		goto out;
 	}
 	else {
 		//copy成功返回0
-		printk(KERN_ALERT "echo  data is: %c,count is: %d\n",dev->data[dev->current_head],count);//echo的数据
-		dev->current_head += count;
+		printk(KERN_ALERT "echo  data is: %c,count is: %d\n",dev->data[dev->current_len],count);//echo的数据
 		dev->current_len += count;
 		wake_up_interruptible(&dev->r_wait);
 		ret = count;
