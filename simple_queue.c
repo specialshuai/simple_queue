@@ -39,7 +39,8 @@ ssize_t	simple_queue_read(struct file *filp, char __user *buf, size_t count, lof
 	struct simple_queue_dev *dev = filp->private_data;
 	int ret = 0;
 	DECLARE_WAITQUEUE(wait, current); //定义等待队列，方便实现read的阻塞
-	
+	if(*f_ops)
+		return 0;
 	down(&dev->sem);
 	add_wait_queue(&dev->r_wait, &wait);//任务添加进等待队列
 	while(dev->current_len == 0)
@@ -59,16 +60,18 @@ ssize_t	simple_queue_read(struct file *filp, char __user *buf, size_t count, lof
 		down(&dev->sem);
 	}
 	//队列有数据了且当前头是current_len
-	if(copy_to_user(buf, (void *)(dev->data),1)){
+	if(copy_to_user(buf, (void *)(dev->data),2)){
 		ret = -EFAULT;
 		goto out;
 	} else 
 	{
 		printk(KERN_ALERT "cat current data is: %c\n",dev->data[dev->current_tail]);//cat一次输出一个int
-		dev->current_len -= 1;
-		dev->current_tail += 1;
+		dev->current_len -= 2;
+		dev->current_tail += 2;
+		printk(KERN_ALERT "current len is: %d\n",dev->current_len);
 		wake_up_interruptible(&dev->w_wait);
-		ret = 1;
+		*f_ops +=2;
+		ret = 2;
 	}
 out:
 	up(&dev->sem);
@@ -100,7 +103,6 @@ ssize_t simple_queue_write(struct file *filp, const char __user *buf, size_t cou
 		}
 		down(&dev->sem);
 	}
- 
 	if(copy_from_user(dev->data + dev->current_head, buf, count)){
 		//copy失败
 		ret = -EFAULT;
@@ -108,7 +110,7 @@ ssize_t simple_queue_write(struct file *filp, const char __user *buf, size_t cou
 	}
 	else {
 		//copy成功返回0
-		printk(KERN_ALERT "echo  data is: %c\n",dev->data[dev->current_head]);//echo的数据
+		printk(KERN_ALERT "echo  data is: %c,count is: %d\n",dev->data[dev->current_head],count);//echo的数据
 		dev->current_head += count;
 		dev->current_len += count;
 		wake_up_interruptible(&dev->r_wait);
