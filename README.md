@@ -1,4 +1,5 @@
 使用操作
+
 1.make
 
 2.insmod simple_queue.ko 
